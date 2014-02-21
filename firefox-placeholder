@@ -1,0 +1,73 @@
+# firefox Placeholder
+# ===================
+
+# Create a html response that is the URL path in the title
+# Used with tree style tabs addon to make top level tabs with specific names
+
+# main server
+server {
+    listen 8016;
+
+    server_name _;
+
+    root /usr/local/www;
+    index index.html;
+
+    # this prevents hidden files (beginning with a period) from being served
+    location ~ /\. {
+        access_log off;
+        log_not_found off;
+        deny all;
+    }
+
+    # output the icon
+    location ~ ^/favicon.(ico|png)$ {
+        allow 127.0.0.1;
+        deny all;
+    }
+
+    # just convert title
+    location ~ ^/(.*)$ {
+        allow 127.0.0.1;
+        deny all;
+
+        default_type text/html;
+
+        content_by_lua "
+           local str = ngx.unescape_uri(ngx.var[1])
+
+           local js = [[
+function new_tab(url) {
+    window.open(url, '_blank');
+    return false;
+}
+function do_link() {
+    var url = document.getElementById('the-url').value;
+    if ('' === url) {
+        return false;
+    }
+    if ('.' == url[0]) {
+        new_tab(url.substring(1));
+    } else if (/^https?:/.test(url)) {
+        new_tab(url);
+    } else {
+        new_tab('http://' + url);
+    }
+    return false;
+}
+]]
+           local s1 = '<!DOCTYPE html>\\n<html><head><meta charset=\"UTF-8\">\\n<title>'
+           local s2 = '</title>\\n<link rel=\"shortcut icon\" href=\"/favicon.png\" />\\n<script type=\"text/javascript\">\\n'
+           local s3 = '</script></head>\\n<body><h1>'
+           local s4 = '</h1><form onsubmit=\"return do_link();\"><input name=\"url\" id=\"the-url\" size=\"60\"><br /><br />\\n<a href=\"/New%20Tab\" onclick=\"return do_link();\" target=\"_blank\">New Tab</a>\\n</form></body></html>'
+           ngx.say(s1 .. str .. s2 .. js .. s3 .. str .. s4)
+        ";
+        autoindex off;
+    }
+
+    # deny access to everything else
+    location ~ ^/ {
+        autoindex off;
+        return 404;
+    }
+}
